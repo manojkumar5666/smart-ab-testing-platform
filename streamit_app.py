@@ -45,7 +45,7 @@ p-value = {p_val:.5f}
 
 # 🧪 Main Logic
 if uploaded_file:
-        try:
+    try:
         df = pd.read_csv(uploaded_file)
 
         # ✅ Step 1: Basic column check (user_id, group, landing_page)
