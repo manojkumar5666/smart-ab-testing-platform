@@ -45,63 +45,67 @@ p-value = {p_val:.5f}
 
 # 🧪 Main Logic
 if uploaded_file:
-    try:
+        try:
         df = pd.read_csv(uploaded_file)
-        # ✅ If 'converted' column is missing, try to create from '# of Purchase'
+
+        # ✅ Step 1: Basic column check (user_id, group, landing_page)
+        required = {'user_id', 'group', 'landing_page'}
+        if not required.issubset(df.columns):
+            st.error("❌ CSV missing required columns: user_id, group, landing_page")
+            st.stop()
+
+        # ✅ Step 2: Handle missing 'converted' column
         if 'converted' not in df.columns:
             if '# of Purchase' in df.columns:
                 df['converted'] = df['# of Purchase'].apply(lambda x: 1 if x >= 1 else 0)
-        else:
-            st.error("❌ CSV is missing both 'converted' and '# of Purchase' columns.")
-            st.stop()
-
-        required = {'user_id', 'group', 'landing_page', 'converted'}
-        if not required.issubset(df.columns):
-            st.error("❌ CSV missing required columns: user_id, group, landing_page, converted")
-        else:
-            df = df.query(
-                "(group == 'treatment' and landing_page == 'new_page') or (group == 'control' and landing_page == 'old_page')"
-            ).drop_duplicates(subset='user_id')
-
-            if df.empty:
-                st.warning("⚠️ No valid records after filtering. Please check your data.")
             else:
-                control = df[df['group'] == 'control']['converted']
-                treatment = df[df['group'] == 'treatment']['converted']
+                st.error("❌ CSV is missing both 'converted' and '# of Purchase' columns.")
+                st.stop()
 
-                if len(control) < 10 or len(treatment) < 10:
-                    st.warning("⚠️ Fewer than 10 users per group. Consider adding more data.")
+        # ✅ Step 3: Filter (for ab_data-style CSV)
+        df = df.query(
+            "(group == 'treatment' and landing_page == 'new_page') or (group == 'control' and landing_page == 'old_page')"
+        ).drop_duplicates(subset='user_id')
 
-                # 🔢 Stats
-                p_c = control.mean()
-                p_t = treatment.mean()
-                uplift = p_t - p_c
+        if df.empty:
+            st.warning("⚠️ No valid records after filtering. Please check your data.")
+        else:
+            control = df[df['group'] == 'control']['converted']
+            treatment = df[df['group'] == 'treatment']['converted']
 
-                success = np.array([control.sum(), treatment.sum()])
-                nobs = np.array([len(control), len(treatment)])
+            if len(control) < 10 or len(treatment) < 10:
+                st.warning("⚠️ Fewer than 10 users per group. Consider adding more data.")
 
-                z_score, p_val = proportions_ztest(success, nobs)
-                p_pool = (success[0] + success[1]) / (nobs[0] + nobs[1])
-                se = np.sqrt(p_pool * (1 - p_pool) * (1/nobs[0] + 1/nobs[1]))
-                margin = 1.96 * se
-                ci_lo = uplift - margin
-                ci_hi = uplift + margin
+            # 🔢 Stats
+            p_c = control.mean()
+            p_t = treatment.mean()
+            uplift = p_t - p_c
 
-                # 📋 Results
-                st.subheader("🧪 Test Results")
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Control", f"{p_c:.2%}")
-                col2.metric("Treatment", f"{p_t:.2%}", delta=f"{uplift:.2%}")
-                col3.metric("Sample Sizes", f"{nobs[0]} / {nobs[1]}")
+            success = np.array([control.sum(), treatment.sum()])
+            nobs = np.array([len(control), len(treatment)])
 
-                st.subheader("📋 Auto-Generated Insight")
-                st.markdown(generate_ab_insight(p_c, p_t, p_val, ci_lo, ci_hi))
+            z_score, p_val = proportions_ztest(success, nobs)
+            p_pool = (success[0] + success[1]) / (nobs[0] + nobs[1])
+            se = np.sqrt(p_pool * (1 - p_pool) * (1/nobs[0] + 1/nobs[1]))
+            margin = 1.96 * se
+            ci_lo = uplift - margin
+            ci_hi = uplift + margin
 
-                st.subheader("📈 Conversion Comparison")
-                st.bar_chart(pd.DataFrame({
-                    "Control": [p_c],
-                    "Treatment": [p_t]
-                }))
+            # 📋 Results
+            st.subheader("🧪 Test Results")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Control", f"{p_c:.2%}")
+            col2.metric("Treatment", f"{p_t:.2%}", delta=f"{uplift:.2%}")
+            col3.metric("Sample Sizes", f"{nobs[0]} / {nobs[1]}")
+
+            st.subheader("📋 Auto-Generated Insight")
+            st.markdown(generate_ab_insight(p_c, p_t, p_val, ci_lo, ci_hi))
+
+            st.subheader("📈 Conversion Comparison")
+            st.bar_chart(pd.DataFrame({
+                "Control": [p_c],
+                "Treatment": [p_t]
+            }))
     except Exception as e:
         st.error(f"❌ Error processing file: {e}")
 
