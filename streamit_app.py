@@ -47,6 +47,13 @@ p-value = {p_val:.5f}
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
+        # ✅ If 'converted' column is missing, try to create from '# of Purchase'
+        if 'converted' not in df.columns:
+            if '# of Purchase' in df.columns:
+                df['converted'] = df['# of Purchase'].apply(lambda x: 1 if x >= 1 else 0)
+        else:
+            st.error("❌ CSV is missing both 'converted' and '# of Purchase' columns.")
+            st.stop()
 
         required = {'user_id', 'group', 'landing_page', 'converted'}
         if not required.issubset(df.columns):
